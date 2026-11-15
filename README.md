@@ -10,7 +10,6 @@ This repository is a fork of [animeshtrivedi/rdma-example](https://github.com/an
 
 - **Kernel-space client, user-space server.** The module connects to the unmodified `rdma_server`, so you can compare the kernel and user-space code paths side by side for exactly the same exchange.
 - **Full round trip.** It connects, exchanges buffer metadata with SEND/RECV, does an RDMA WRITE into the server's buffer, RDMA READs it back, and compares the two.
-- **Works without RDMA hardware.** Buffers are mapped through the `ib_dma_*` helpers, so software devices (SoftiWARP `siw`, Soft-RoCE `rxe`) work as well as real NICs.
 - **Defensive by design.** Every wait has a timeout, a dropped connection is reported as an error, all resources are released on every failure path, and the module can be unloaded at any time.
 
 The kernel code borrows ideas and some code from [krdma](https://github.com/snake0/krdma) and [krping](https://github.com/larrystevenwise/krping). The original user-space example in `src/` is unchanged.
@@ -22,13 +21,7 @@ The kernel code borrows ideas and some code from [krdma](https://github.com/snak
 - Linux with headers for the running kernel (`/lib/modules/$(uname -r)/build`). The module uses the verbs API as it has been since kernel 4.19.
 - `gcc`, `make`, `cmake`.
 - `rdma-core` development files (`libibverbs`, `librdmacm`) for the user-space server.
-- An RDMA device on both ends. No hardware? Create a software one:
-
-  ```bash
-  sudo modprobe siw
-  sudo rdma link add siw0 type siw netdev <your-network-interface>
-  rdma link show
-  ```
+- An RDMA-capable network adapter (InfiniBand, RoCE or iWARP) on both ends.
 
 ### Build
 
@@ -98,7 +91,7 @@ The original user-space client still works against the same server:
 | Symptom (`insmod` output or `dmesg`) | Likely cause |
 |---|---|
 | `insmod: ... Invalid parameters` | `server=` missing or malformed |
-| `rdma_resolve_addr did not complete` | no RDMA device can reach `<server-ip>` (for `siw`/`rxe`, check `rdma link show`) |
+| `rdma_resolve_addr did not complete` | no RDMA device can reach `<server-ip>` (check `rdma link show`) |
 | `connection was not established` | server not running, wrong port, or a firewall |
 | `timed out waiting for state N` | the server stopped responding; each step waits at most 10 s |
 
@@ -128,7 +121,7 @@ CMakeLists.txt        builds src/ into ./bin
  │   ├ kclient.c  (kthread)   │               │   librdmacm / libibverbs  │
  │   └ krdma.c    (helpers)   │               ├───────────────────────────┤
  │  rdma_cm  ·  ib_core       │               │ kernel: rdma_ucm, ib_core │
- │  device driver (mlx5/siw…) │◄── RDMA ─────►│ device driver             │
+ │  device driver (e.g. mlx5) │◄── RDMA ─────►│ device driver             │
  └────────────────────────────┘               └───────────────────────────┘
 ```
 
@@ -204,7 +197,7 @@ Failure states are sticky: once the connection has failed, a late success event 
 | `rdma_write_buf` | 1 page | to device | source of the RDMA WRITE |
 | `rdma_read_buf` | 1 page | from device | destination of the RDMA READ |
 
-- All four are `kmalloc`ed and mapped with `ib_dma_map_single()`. This helper does a real DMA mapping for hardware NICs and passes kernel virtual addresses through for software devices, so the same code runs on both.
+- All four are `kmalloc`ed and mapped for the RDMA device with `ib_dma_map_single()`.
 - The CPU only touches a mapped buffer between `ib_dma_sync_single_for_cpu()` and `ib_dma_sync_single_for_device()`.
 - No memory region is registered on the client. Work requests use the protection domain's `local_dma_lkey`; only the server's buffer needs a remote key, and the server provides it.
 
