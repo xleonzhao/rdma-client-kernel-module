@@ -17,7 +17,7 @@ sudo insmod rdma_kclient.ko server=<server address> [port=<server port>]
 # default server port is 20886
 ```
 
-# RDMA exmaple
+# RDMA example
 
 A simple RDMA server client example. The code contains a lot of comments. Here is the workflow that happens in the example: 
 
@@ -40,8 +40,8 @@ Server:
 
 ###### How to run      
 ```text
-git clone https://github.com/animeshtrivedi/rdma-example.git
-cd ./rdma-example
+git clone https://github.com/xleonzhao/rdma-client-kernel-module.git
+cd ./rdma-client-kernel-module
 cmake .
 make
 ``` 
